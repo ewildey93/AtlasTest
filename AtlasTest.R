@@ -15,8 +15,6 @@ AtlTest1$DateTime <- as.POSIXct(paste(AtlTest1$Date, AtlTest1$Time),
                                format="%Y-%m-%d %H:%M:%S", tz="GMT")
 attributes(AtlTest$DateTime)$tzone <- "America/Denver"
 attributes(AtlTest1$DateTime)$tzone <- "America/Denver"
-AtlTest$timestamp <- AtlTest$DateTime
-AtlTest1$timestamp <- AtlTest1$DateTime
 AtlTest$UnixTime <- as.numeric(AtlTest$DateTime)
 AtlTest1$UnixTime <- as.numeric(AtlTest1$DateTime)
 #colnames(AtlTest)[c(2,5,6,7,13)] <- c("TAG", "NBS", "X", "Y", "TIME")
@@ -106,7 +104,7 @@ par(mfrow=c(1,1))
 lapply(AtlList, function(x) hist(x$angle))
 
 #1min
-AtlList <- lapply(AtlList, function (x)
+AtlList1 <- lapply(AtlList1, function (x)
 {x$angle <-  atl_turning_angle(data=x,x="x.est", y="y.est", 
                                time="UnixTime")
 ;x})
@@ -120,7 +118,7 @@ lapply(AtlList, function(x) hist(x$angle))
 ####3min####
 AtlList <- lapply(AtlList, function (x) atl_filter_covariates(data=x,
                                                               filters= c(
-                                                                "(speed_in < S & speed_out < S) | angle < A"
+                                                                "(speed_in < 3 & speed_out < 3) | angle < 70"
                                                               )))
 #filter "spikes" or reflections
 ?atl_remove_reflections
@@ -131,18 +129,19 @@ AtlList <- lapply(AtlList, function (x) atl_remove_reflections (data = x, x = "x
 ###1min####
 AtlList1 <- lapply(AtlList1, function (x) atl_filter_covariates(data=x,
                                                               filters= c(
-                                                                "(speed_in < S & speed_out < S) | angle < A"
+                                                                "(speed_in < 12 & speed_out < 12) | angle < 80"
                                                               )))
-#filter "spikes" or reflections
+#filter "spikes" or reflections, do before filter covariates if run
 ?atl_remove_reflections
-AtlList1 <- lapply(AtlList16, function (x) atl_remove_reflections (data = x, x = "x.est",
+AtlList1 <- lapply(AtlList1, function (x) atl_remove_reflections (data = x, x = "x.est",
                                                                 y= "y.est",time = "UnixTime",
-                                                                point_angle_cutoff = 45,
-                                                                reflection_speed_cutoff = 20))                                                               
+                                                                point_angle_cutoff = 70,
+                                                                reflection_speed_cutoff = 12))                                                               
 #######################################################################                                                                                                                                ))
 #median smoothing, play with moving window value must be an odd number,
 #need not be assigned to new object, modifies in place
 ########################################################################
+#3min
 AtlSmooth <- lapply(AtlList, function (x) atl_median_smooth(data = x, x = "x.est",
                                                                 y= "y.est",time = "UnixTime",
                                                                 moving_window=5))
@@ -150,12 +149,30 @@ AtlSmooth <- lapply(AtlList, function (x) atl_median_smooth(data = x, x = "x.est
 SmoothLines <- lapply(AtlSmooth, function (x) track(x, x = x$x.est, y = x$y.est, .t=x$DateTime,  
                                            crs=CRS("+init=EPSG:32613"), all_cols=TRUE))
 SmoothLines <- lapply(SmoothLines, function (x) as_sf_lines(x))
-for (i in 1:length(AtlLines1)){st_write(SmoothLines[[i]], dsn=paste0(names(SmoothLines)[i], "3minSmooth.shp"))}
-#thin data, do with smoothed data!
+for (i in 1:length(SmoothLines)){st_write(SmoothLines[[i]], dsn=paste0(names(SmoothLines)[i], "3min.FilterTAS.Smooth.shp"))}
+
+#1min
+AtlSmooth1 <- lapply(AtlList1, function (x) atl_median_smooth(data = x, x = "x.est",
+                                                            y= "y.est",time = "UnixTime",
+                                                            moving_window=5))
+
+SmoothLines1 <- lapply(AtlSmooth1, function (x) track(x, x = x$x.est, y = x$y.est, .t=x$DateTime,  
+                                                    crs=CRS("+init=EPSG:32613"), all_cols=TRUE))
+SmoothLines1 <- lapply(SmoothLines1, function (x) as_sf_lines(x))
+for (i in 1:length(SmoothLines1)){st_write(SmoothLines1[[i]], dsn=paste0(names(SmoothLines1)[i], "1min.FilterTAS.NoSpikes.Smooth.shp"))}
+
+#############################################################
+#thin data, do with smoothed data only!#########################
+###########################################################
 thinned <- lapply(AtlListSmooth, function (x) atl_thin_data(data = x, interval=60,
                                                           id_columns= c("TagId"),
-                                                          method = "aggregate or subsample"))
+                                                          method= "aggregate or subsampling"))
+
+                                                          
+                                                          
+#################################################################################                                                                                                                    method = "aggregate or subsample"))
 #calculate residence patches
+#################################################################################
 patches <- lapply(AtlListSmooth, function (x) atl_res_patch(data = x,
                                                             buffer_radius= 10,
                                                             lim_spat_indep = 100,
