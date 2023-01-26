@@ -5,18 +5,22 @@ library(spatialEco)
 library(tmap)
 setwd("C:/Users/eliwi/OneDrive/Documents/R/data_tools/data_tools")
 
-x <- readRDS("./Calibration1.20/out.rds")
+x <- read.csv("./Calibration1.20/Trilateration.Test.Data_Filter.Distance.187.5_Results.csv")
+str(x)
 ErrorData <- read.csv("./Calibration1.20/LocError_Dataset.csv")
 
-xestSF <- st_as_sf(x,coords = c(2,3),crs=st_crs(4326))
+xestSF <- st_as_sf(x,coords = c(3,4),crs=st_crs(4326))
 xestSF <- st_transform(xestSF, crs=st_crs(32613))
 x$EstUTMx <- st_coordinates(xestSF)[,1]
 x$EstUTMy <- st_coordinates(xestSF)[,2]
 
-xtagSF <- st_as_sf(x,coords = c(12,11),crs=st_crs(4326))
+xtagSF <- st_as_sf(x,coords = c(9,10),crs=st_crs(4326))
 xtagSF <- st_transform(xtagSF, crs=st_crs(32613))
 x$TagUTMx <- st_coordinates(xtagSF)[,1]
 x$TagUTMy <- st_coordinates(xtagSF)[,2]
+
+x$CIX <- x$x.ci.upper-x$x.ci.lower
+x$CIY <- x$y.ci.upper-x$y.ci.lower
 
 x$diffUTMx <- x$TagUTMx-x$EstUTMx
 x$diffUTMy <- x$TagUTMy-x$EstUTMy
@@ -28,6 +32,13 @@ ggplot(x, aes(diffUTMx, diffUTMy), scale="globalminmax") +
   theme_minimal()
 
 
+x$dist <- terra::distance(as.matrix(x[,16:17]), as.matrix(x[,14:15]),pairwise=TRUE, lonlat=FALSE)
+str(x)
+ggplot(x, aes(CIX,diff.dist )) +
+  geom_point()
+
+ggplot(x, aes(CIY,diff.dist )) +
+  geom_point()
 
 
 #glmm

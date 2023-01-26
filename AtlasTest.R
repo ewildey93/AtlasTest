@@ -25,6 +25,9 @@ AtlTest$VarX <- (((AtlTest$x.ci.upper-AtlTest$x.ci.lower)/3.92)*sqrt(AtlTest$No.
 AtlTest$VarY <- (((AtlTest$y.ci.upper-AtlTest$y.ci.lower)/3.92)*sqrt(AtlTest$No.Nodes))^2
 AtlTest$CoV <- cov(AtlTest$x.est, AtlTest$y.est)
 
+#get CI width
+AtlTest$Error <- 
+
 ###############filter for time period of track####################
 range(AtlTest$DateTime)
 range(AtlTest1$DateTime)
@@ -46,6 +49,10 @@ bLines <- lapply(bList, function (x) track(x, x = x$x.est, y = x$y.est, .t=x$Dat
 bLines <- lapply(bLines, function (x) as_sf_lines(x))
 for (i in 1:length(bLines)){st_write(bLines[[i]], dsn=paste0(names(bLines)[i], "filtertimetrack1min.shp"))}
 
+
+
+
+
 ###################################################################
 #make lines for points
 str(AtlTest)
@@ -64,6 +71,7 @@ for (i in 1:length(AtlLines1)){st_write(AtlLines1[[i]], dsn=paste0(names(AtlLine
 
 
 #filter based on error estimates to be figured out later
+
 
 ############look for unrealistic speed##################################
 #3min
@@ -94,6 +102,36 @@ par(mfrow=c(1,1))
 lapply(AtlList1, function(x) hist(x$speed_in))
 lapply(AtlList1, function(x) hist(x$speed_out))
 
+
+#time filtered data
+#3min
+aList <- lapply(aList, function (x)
+{x$speed_in <-  atl_get_speed(data=x,x="x.est", y="y.est", 
+                              time="UnixTime", type=c('in'))
+;x})
+aList <- lapply(aList, function (x)
+{x$speed_out <-  atl_get_speed(data=x,x="x.est", y="y.est", 
+                               time="UnixTime", type=c('out'))
+;x})
+
+par(mfrow=c(1,2))
+lapply(aList, function(x) hist(x$speed_in))
+lapply(aList, function(x) hist(x$speed_out))
+
+#1min
+bList <- lapply(bList, function (x)
+{x$speed_in <-  atl_get_speed(data=x,x="x.est", y="y.est", 
+                              time="UnixTime", type=c('in'))
+;x})
+bList <- lapply(bList, function (x)
+{x$speed_out <-  atl_get_speed(data=x,x="x.est", y="y.est", 
+                               time="UnixTime", type=c('out'))
+;x})
+
+par(mfrow=c(1,1))
+lapply(bList, function(x) hist(x$speed_in))
+lapply(bList, function(x) hist(x$speed_out))
+
 #########################look at angle distribution#################################
 #3min
 AtlList <- lapply(AtlList, function (x)
@@ -111,6 +149,22 @@ AtlList1 <- lapply(AtlList1, function (x)
 par(mfrow=c(1,1))
 lapply(AtlList, function(x) hist(x$angle))
 
+#filtered time
+aList <- lapply(aList, function (x)
+{x$angle <-  atl_turning_angle(data=x,x="x.est", y="y.est", 
+                               time="UnixTime")
+;x})
+par(mfrow=c(1,1))
+lapply(aList, function(x) hist(x$angle))
+
+#1min
+bList <- lapply(bList, function (x)
+{x$angle <-  atl_turning_angle(data=x,x="x.est", y="y.est", 
+                               time="UnixTime")
+;x})
+par(mfrow=c(1,1))
+lapply(bList, function(x) hist(x$angle))
+
 
 ###################################################################################
 #filter based on unrealistic speed and distance: keep long straight, short tortuous
@@ -120,7 +174,7 @@ AtlList <- lapply(AtlList, function (x) atl_filter_covariates(data=x,
                                                               filters= c(
                                                                 "(speed_in < 3 & speed_out < 3) | angle < 70"
                                                               )))
-#filter "spikes" or reflections
+#filter "spikes" or reflections, do before filter covariates if run
 ?atl_remove_reflections
 AtlList <- lapply(AtlList, function (x) atl_remove_reflections (data = x, x = "x.est",
                                                                 y= "y.est",time = "UnixTime",
@@ -137,6 +191,30 @@ AtlList1 <- lapply(AtlList1, function (x) atl_remove_reflections (data = x, x = 
                                                                 y= "y.est",time = "UnixTime",
                                                                 point_angle_cutoff = 70,
                                                                 reflection_speed_cutoff = 12))                                                               
+#filtered time#######
+####3min####
+aList <- lapply(aList, function (x) atl_filter_covariates(data=x,
+                                                              filters= c(
+                                                                "(speed_in < 3 & speed_out < 3) | angle < 70"
+                                                              )))
+#filter "spikes" or reflections, do before filter covariates if run
+?atl_remove_reflections
+aList <- lapply(aList, function (x) atl_remove_reflections (data = x, x = "x.est",
+                                                                y= "y.est",time = "UnixTime",
+                                                                point_angle_cutoff = 45,
+                                                                reflection_speed_cutoff = 20))
+###1min####
+bList <- lapply(bList, function (x) atl_filter_covariates(data=x,
+                                                                filters= c(
+                                                                  "(speed_in < 12 & speed_out < 12) | angle < 80"
+                                                                )))
+#filter "spikes" or reflections, do before filter covariates if run
+?atl_remove_reflections
+bList <- lapply(bList, function (x) atl_remove_reflections (data = x, x = "x.est",
+                                                                  y= "y.est",time = "UnixTime",
+                                                                  point_angle_cutoff = 70,
+                                                                  reflection_speed_cutoff = 12))  
+
 #######################################################################                                                                                                                                ))
 #median smoothing, play with moving window value must be an odd number,
 #need not be assigned to new object, modifies in place
@@ -160,7 +238,26 @@ SmoothLines1 <- lapply(AtlSmooth1, function (x) track(x, x = x$x.est, y = x$y.es
                                                     crs=CRS("+init=EPSG:32613"), all_cols=TRUE))
 SmoothLines1 <- lapply(SmoothLines1, function (x) as_sf_lines(x))
 for (i in 1:length(SmoothLines1)){st_write(SmoothLines1[[i]], dsn=paste0(names(SmoothLines1)[i], "1min.FilterTAS.NoSpikes.Smooth.shp"))}
+#############################
+#filtered time#############
+ASmooth <- lapply(aList, function (x) atl_median_smooth(data = x, x = "x.est",
+                                                            y= "y.est",time = "UnixTime",
+                                                            moving_window=9))
 
+SmoothLines <- lapply(ASmooth, function (x) track(x, x = x$x.est, y = x$y.est, .t=x$DateTime,  
+                                                    crs=CRS("+init=EPSG:32613"), all_cols=TRUE))
+SmoothLines <- lapply(SmoothLines, function (x) as_sf_lines(x))
+for (i in 1:length(SmoothLines)){st_write(SmoothLines[[i]], dsn=paste0(names(SmoothLines)[i], "3min.FilterTime.Smooth.shp"))}
+
+#1min
+BSmooth <- lapply(bList, function (x) atl_median_smooth(data = x, x = "x.est",
+                                                              y= "y.est",time = "UnixTime",
+                                                              moving_window=9))
+
+SmoothLines1 <- lapply(BSmooth, function (x) track(x, x = x$x.est, y = x$y.est, .t=x$DateTime,  
+                                                      crs=CRS("+init=EPSG:32613"), all_cols=TRUE))
+SmoothLines1 <- lapply(SmoothLines1, function (x) as_sf_lines(x))
+for (i in 1:length(SmoothLines1)){st_write(SmoothLines1[[i]], dsn=paste0(names(SmoothLines1)[i], "1min.FilterTime.Smooth.shp"))}
 #############################################################
 #thin data, do with smoothed data only!#########################
 ###########################################################
