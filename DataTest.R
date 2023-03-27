@@ -3,18 +3,27 @@ library(ggplot2)
 library(terra)
 library(spatialEco)
 library(tmap)
+library(dplyr)
 setwd("C:/Users/eliwi/OneDrive/Documents/R/data_tools/data_tools")
 
 x <- read.csv("./Calibration1.20/Trilateration.Test.Data_Filter.Distance.187.5_Results.csv")
+x$No.Nodes <- as.factor(as.character(x$No.Nodes))
+x%>%dplyr::group_by(No.Nodes)%>%dplyr::summarise(mean=mean(diff.dist), sd=sd(diff.dist), median=median(diff.dist), count=n())
+x%>%summarise(mean=mean(diff.dist), sd=sd(diff.dist), median=median(diff.dist))
+
+percentile <- ecdf(x$diff.dist)
+percentile(500)
 str(x)
 ErrorData <- read.csv("./Calibration1.20/LocError_Dataset.csv")
 
-xestSF <- st_as_sf(x,coords = c(3,4),crs=st_crs(4326))
+ggplot(aes(y=diff.dist, x=No.Nodes), data=x) + geom_boxplot()
+
+xestSF <- st_as_sf(x,coords = c(3,4),crs=st_crs(32613))
 xestSF <- st_transform(xestSF, crs=st_crs(32613))
 x$EstUTMx <- st_coordinates(xestSF)[,1]
 x$EstUTMy <- st_coordinates(xestSF)[,2]
 
-xtagSF <- st_as_sf(x,coords = c(9,10),crs=st_crs(4326))
+xtagSF <- st_as_sf(x,coords = c(9,10),crs=st_crs(32613))
 xtagSF <- st_transform(xtagSF, crs=st_crs(32613))
 x$TagUTMx <- st_coordinates(xtagSF)[,1]
 x$TagUTMy <- st_coordinates(xtagSF)[,2]
@@ -34,13 +43,14 @@ ggplot(x, aes(diffUTMx, diffUTMy), scale="globalminmax") +
 
 x$dist <- terra::distance(as.matrix(x[,16:17]), as.matrix(x[,14:15]),pairwise=TRUE, lonlat=FALSE)
 str(x)
-ggplot(x, aes(CIX,diff.dist )) +
+ggplot(y, aes(CIX,abs(diffUTMx ))) +
   geom_point()
 
-ggplot(x, aes(CIY,diff.dist )) +
+ggplot(y, aes(CIY,abs(diffUTMy ))) +
   geom_point()
 
-
+hist(x$diff.dist)
+y <- x[x$diff.dist>500,]
 #glmm
 elev <- rast("C:/Users/eliwi/OneDrive/Documents/Salida/GeospatialLayers/sljm_usgs_1m.tif")
 elevcrop <- crop(elev, ext)

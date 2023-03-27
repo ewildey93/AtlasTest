@@ -3,6 +3,7 @@
 library(atlastools)
 library(sf)
 library(amt)
+library(aniMotum)
 setwd("C:/Users/eliwi/OneDrive/Documents/R/AtlasTest")
 
 #prepare data for functions
@@ -17,6 +18,9 @@ attributes(AtlTest$DateTime)$tzone <- "America/Denver"
 attributes(AtlTest1$DateTime)$tzone <- "America/Denver"
 AtlTest$UnixTime <- as.numeric(AtlTest$DateTime)
 AtlTest1$UnixTime <- as.numeric(AtlTest1$DateTime)
+
+
+
 #colnames(AtlTest)[c(2,5,6,7,13)] <- c("TAG", "NBS", "X", "Y", "TIME")
 write.csv(AtlTest, "./AtlTest.csv")
 
@@ -283,3 +287,74 @@ What <- AtlTest[AtlTest$TagId == "072D524C",]
 What$speed_out <-  atl_get_speed(data=What,x="x.est", y="y.est", 
                                time="UnixTime", type=c('out'))
 
+
+
+###############################################################################
+#AniMotum State Space Modelling#
+###############################################################################
+a$lc <- 2
+b$lc <- 2
+a <- a%>%group_by(TagId)%>%mutate(timediff=a$DateTime-lag(a$DateTime))%>%ungroup()
+a <- a[a$TagId == '344C7834',]
+aSF <- st_as_sf(a,coords = c(6,7),crs=st_crs(32613))
+MotumDF <- format_data(a, id='TagId',date='DateTime',lc = 'lc',coord = c('x.est','y.est'), tz='America/Denver')
+fit.rw <- fit_ssm(x=aSF,
+               model='rw',
+               time.step=0.15,
+               id='TagId',
+               date='DateTime',
+               lc = 'lc',
+               coord = c('x.est','y.est'),
+               tz='America/Denver')
+
+fit.crw <- fit_ssm(x=aSF,
+                  model='crw',
+                  time.step=0.15,
+                  id='TagId',
+                  date='DateTime',
+                  lc = 'lc',
+                  coord = c('x.est','y.est'),
+                  tz='America/Denver')
+
+fit.mp <- fit_ssm(x=aSF,
+                   model='mp',
+                   time.step=0.15,
+                   id='TagId',
+                   date='DateTime',
+                   lc = 'lc',
+                   coord = c('x.est','y.est'),
+                   tz='America/Denver')
+require(patchwork)
+
+# calculate & plot residuals
+res.rw <- osar(fit.rw)
+
+(plot(res.rw, type = "ts") | plot(res.rw, type = "qq")) / 
+  (plot(res.rw, type = "acf") | plot_spacer())
+
+res.crw <- osar(fit.crw)
+
+(plot(res.crw, type = "ts") | plot(res.crw, type = "qq")) / 
+  (plot(res.crw, type = "acf") | plot_spacer())
+
+res.mp <- osar(fit.mp)
+
+(plot(res.mp, type = "ts") | plot(res.mp, type = "qq")) / 
+  (plot(res.mp, type = "acf") | plot_spacer())
+#predicted= corresponding to user-specified regular time interval
+#fitted= corresponded to observed times
+plot(fit, what = "fitted")
+plot(fit, what = "predicted")
+plot(fit, "p", type = 2, alpha = 0.1)
+
+
+#grab
+preds <- grab(fit.mp, what= "predicted")
+str(preds)
+
+predList <- split(preds, f=preds$id)
+PLines <- lapply(predList, function (x) track(x, x = x$lon, y = x$lat, .t=x$date,  
+                                           crs=CRS("+init=EPSG:4326"), all_cols=TRUE))
+PLines <- lapply(PLines, function (x) as_sf_lines(x))
+for (i in 1:length(PLines)){st_write(PLines[[i]], dsn=paste0(names(PLines)[i], "trackmp.shp"))}
+write.csv(preds,"predsRW.csv")
